@@ -1,9 +1,10 @@
-#define rightSensor 14 //outside one 
+/*
+  UCLA IEEE OPS 2015-16 Capstone Project
+  Christine Chen, Allison Doami, and Charlotte McGinn
+*/
+
+#define rightSensor 14  //outside one 
 #define leftSensor 15   //inside one
-
-//helper function for speed (can assign turning)
-
-//implement something that makes the car keep on turning until it sees the line 
 
 #define rightWheelInput1 9
 #define rightWheelInput2 10
@@ -11,37 +12,41 @@
 #define leftWheelInput3 3
 #define leftWheelInput4 4
 
-#define enablePinLeft 22
+#define enablePinLeft 22    //22 and 23 are our EN1 and EN2
 #define enablePinRight 23
 
 #define LED 13
-//22 and 23 are our EN1 and EN2
 
- int sensorRight = 0;
+
+ int sensorRight = 0;    //right and left sensor readings
  int sensorLeft = 0;
 
- int rightSpeed = 0;
+ int rightSpeed = 0;     //right and left motor speeds
  int leftSpeed = 0;
 
- int rightError = 0;
+ int rightError = 0;     //right and left motor error
  int leftError = 0;
 
- int rightBaseline = 0;
+ int rightBaseline = 0;  //right and left motor baseline
  int leftBaseline = 0;
 
- double KpRight = 0.3;
- double KpLeft = 0.5;
- int leftTolerance = 50;
- int rightTolerance = 50;
+ double kp = 6;          //proportional constant
+ double kd = 0;          //derivative constant
+ double ki = 0;          //integral constant
 
- int maxSpeed = 70;
+ int error = 0;          //error (rightError - leftError)
+ int dError = 0;         //derivative error
+ int pError = 0;         //previous error
+ int integral = 0;       //integral value
+ int speedChange = 0;
+ 
+ int maxSpeed = 255;     //maxSpeed = 70, KpRight = 0.3, KpLeft = 0.5
+                         //maxSpeed = 100; KpRight = 0.3, KpLeft = 0.3
 
- int delaytime = 100;
+ int delaytime = 0;    //time between control loop iterations
 
 void setup() {
   Serial.begin(9600);
-
-  
 
   pinMode(rightSensor, INPUT);
   pinMode(leftSensor, INPUT);
@@ -55,105 +60,42 @@ void setup() {
   pinMode(enablePinRight, OUTPUT);
   pinMode(enablePinLeft, OUTPUT);
 
+  digitalWrite(LED, HIGH);
+  
+  // sample and find average value for right and left sensors
   for(int i = 0; i < 200; i++){
      rightBaseline += analogRead(rightSensor);
      leftBaseline += analogRead(leftSensor);
   }
 
+  digitalWrite(LED, LOW);
+  
   rightBaseline /= 200;
   leftBaseline /= 200;
-
-
 
   pinMode(LED, OUTPUT);
 }
 
 
-/*void pedalToTheMetal(int side, int error){
-
-  rightSpeed = map(error,0,rightBaseline,0, rightBaseline);
-  leftSpeed = map(
-  
-  if(side == 0){ //right side
-    
-  }
-
-  if(side == 1){ //left side
-    
-  }
-}*/
-
-
 void loop() {
-
-/*
-  Serial.print("RightBaseline: ");
-  Serial.println(rightBaseline);
-  Serial.print("LeftBaseline: ");
-  Serial.println(leftBaseline);
-  Serial.println();
- */
-
-  rightSpeed = maxSpeed;
-  leftSpeed = maxSpeed;
   
-  sensorRight = analogRead(rightSensor);
-  sensorLeft = analogRead(leftSensor);
+  sensorRight = analogRead(rightSensor);     //read right sensor value
+  sensorLeft = analogRead(leftSensor);       //read left sensor value
 
-  rightError = sensorRight - rightBaseline;
-  leftError = sensorLeft - leftBaseline;
+  rightError = sensorRight - rightBaseline;  //calculate right sensor error
+  leftError = sensorLeft - leftBaseline;     //calculate left sensor error
 
+  error = rightError - leftError;            //calculate error between sensors
+  dError = error - pError;                   //calculate the derivative error
+  integral += error;                         //update the integral
+  pError = error;                            //update the previous error value
+  
+  rightSpeed = maxSpeed;                     //set the speed of right motor
+  leftSpeed = maxSpeed;                      //set the speed of left motor
 
-
-
-
-  if(rightError < 0){
-    rightError *= -1;
-  }
-  if(leftError < 0){
-    leftError *= -1;
-  }
-
-  //rightError *=(255/1023);
-  //leftError *=(255/1023);
-
-  if(rightError > 300){
-    turnRight();
-    
-  }else if(leftError > 200){
-    turnLeft();
-    
-  }else if(rightError > rightTolerance){
-    rightSpeed -= (KpRight*rightError);
-    leftSpeed += (KpLeft*rightError);
-  }
-  else if(leftError > leftTolerance){
-    rightSpeed += (KpRight*leftError);
-    leftSpeed -= (KpLeft*leftError);
-  }
-  else{
-    rightSpeed= maxSpeed;
-    leftSpeed= maxSpeed;
-  }
-
-  //don't want it to be negative
-/*  if (rightSpeed < 0){
-    rightSpeed  = 0;
-  }
-  if (leftSpeed < 0){
-    leftSpeed = 0;
-  }
-
-  //don't want it to exceed 255
-  if (rightSpeed >maxSpeed){
-    rightSpeed = maxSpeed;
-  }
-  if (leftSpeed >maxSpeed){
-    leftSpeed = maxSpeed;
-  }
-
-  */
-
+  speedChange = (kp*error) + (kd*dError) + (ki*integral); //use PID to calculate the speed change
+  rightSpeed -= speedChange;                              //update the right speed
+  leftSpeed += speedChange;                               //update the left speed
 
   Serial.print("rightError: ");
   Serial.println(rightError);
@@ -169,82 +111,18 @@ void loop() {
   digitalWrite(leftWheelInput3, HIGH);
   digitalWrite(leftWheelInput4, LOW);
 
+  //update the speed of the right motor to our calculated speed
+  analogWrite(enablePinRight, rightSpeed);
+  Serial.print("Right Wheel: ");
+  Serial.println(rightSpeed);
 
-  /*if(sensorRight > 700){
-
-    rightSpeed = 50;
-    
-  }
-
-  if(sensorLeft > 700){
-    leftSpeed = 50;
-  }
-*/
-analogWrite(enablePinRight, rightSpeed);
-Serial.print("Right Wheel: ");
-Serial.println(rightSpeed);
-
-analogWrite(enablePinLeft, leftSpeed);
-Serial.print("Left Wheel: ");
-Serial.println(leftSpeed);
-Serial.println();
+  //update the speed of the left motor to our calculated speed
+  analogWrite(enablePinLeft, leftSpeed);
+  Serial.print("Left Wheel: ");
+  Serial.println(leftSpeed);
+  Serial.println();
+  
   digitalWrite(LED, HIGH); 
 
   delay(delaytime);
 }
-
-void turnRight(){
-  rightSpeed = 0;
-  sensorLeft = analogRead(leftSensor);
-
-  leftError = leftBaseline - sensorLeft;
-
-   if(leftError < 0){
-    leftError *= -1;
-  }
-  int i = 0;
-
-    Serial.println("break");
-  return;
-  
-  while(leftError < 100){ //stuck in infinite loop
-    
-    map(i, 0, leftError, 0, 100);
-    
-    rightSpeed = (i / 100 ) * leftSpeed;
-    delay(100);
-  }
-
-  rightSpeed = 300;
-
-}
-
-void turnLeft(){
-  leftSpeed = 0;
-  sensorRight = analogRead(rightSensor);
-  rightError = sensorRight - rightBaseline;
-
-    if(rightError < 0){
-    rightError *= -1;
-  }
- 
-
-
-  
-  int i = 0;
-
-  Serial.println("break");
-  return;
-  
-  while(rightError < 100){
-    
-    map(i, 0, rightError, 0, 100);
-    leftSpeed = (i / 100 ) * rightSpeed;
-    delay(100);
-  }
-
-
-  leftSpeed = 300;
-  
-}
-
